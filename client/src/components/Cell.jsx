@@ -1,19 +1,24 @@
 
 function Cell({ value, onClick, isWinning, disabled }) {
+  const isOdd = value > 0 && value % 2 === 1;
+  const isEven = value > 0 && value % 2 === 0;
+
+  const cellClass = `
+    w-16 h-16 flex items-center justify-center
+    text-2xl font-bold rounded-lg
+    transition-all duration-200
+    ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:scale-105'}
+    ${isWinning ? 'bg-green-400 text-white ring-4 ring-green-600' : 'bg-white'}
+    ${!isWinning && isOdd ? 'text-blue-600 border-2 border-blue-300' : ''}
+    ${!isWinning && isEven ? 'text-green-600 border-2 border-green-300' : ''}
+    ${value === 0 ? 'text-gray-400 border-2 border-gray-200' : ''}
+  `;
+
   return (
     <button
       onClick={onClick}
-      disabled={disabled || value != null}
-      className={` border-2 border-gray-300 rounded-lg
-        w-full text-6xl font-bold
-        aspect-square
-        transition-all duration-200
-        hover:bg-gray-100 active:scale-95
-        disabled:cursor-not-allowed
-        ${isWinning ? "bg-green-200 border-green-500" : "bg-white"}
-        ${value === "X" ? "text-red-500" : "text-blue-500"}
-        `}
-      aria-label={value ? `Cell with ${value}` : "Empty cell"}
+      disabled={disabled}
+      className={cellClass}
     >
       {value}
     </button>

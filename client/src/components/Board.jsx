@@ -7,7 +7,7 @@ function Board({ board, onCellClick, winningLine, disabled }) {
   };
 
   return (
-    <div className="grid grid-cols-3 gap-2 w-full max-w-md mx-auto p-4">
+    <div className="grid grid-cols-5 gap-2 w-full max-w-lg mx-auto p-4">
       {board.map((cell, index) => (
         <Cell
           key={index}

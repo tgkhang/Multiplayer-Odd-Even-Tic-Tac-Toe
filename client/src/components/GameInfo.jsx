@@ -1,15 +1,12 @@
-function GameInfo({ currentPlayer, gameStatus, isPlayerTurn }) {
+function GameInfo({ playerSymbol, gameStatus, isGameActive }) {
   return (
-    <div className='bg-white rounded-lg shadow-md p-6 mb-6 text-center'>
-      <div className='mb-2'>
-        <span className='text-gray-600'>Current Turn: </span>
-        <span className={`font-bold text-2xl ${currentPlayer === 'X' ? 'text-red-500' : 'text-blue-500'}`}>
-          {currentPlayer}
-        </span>
-      </div>
-      <div className={`text-lg font-semibold ${isPlayerTurn ? 'text-green-600' : 'text-gray-600'}`}>
-        {gameStatus}
-      </div>
+    <div className="bg-white rounded-lg shadow-md p-4 mb-6 text-center">
+      {playerSymbol && (
+        <p className="text-lg mb-2">
+          You are the <span className="font-bold text-purple-600">{playerSymbol}</span> player
+        </p>
+      )}
+      <p className="text-xl font-semibold text-gray-700">{gameStatus}</p>
     </div>
   );
 }

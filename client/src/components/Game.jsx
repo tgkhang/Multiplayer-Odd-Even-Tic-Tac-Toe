@@ -2,12 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { createEmptyBoard } from '../utils/gameLogic'
 import Board from './Board'
 import GameInfo from './GameInfo'
-import { WebSocketService } from '../utils/websocket'
+import { WebSocketService } from '../utils/webSocket'
 
 function Game({ onBackToMenu, onWin, onLoss, onDraw }) {
   //player
-  const [currentPlayer, setCurrentPlayer] = useState("X")
-  const [playerSymbol, setPlayerSymbol] = useState(null)
+  const [playerSymbol, setPlayerSymbol] = useState(null) // ODD even
 
   //server
   const [isWaiting, setIsWaiting] = useState(true)
@@ -75,20 +74,15 @@ function Game({ onBackToMenu, onWin, onLoss, onDraw }) {
       })
 
       wsService.current.on("gameStart", (data) => {
-        try {
-          console.log("Game starting:", data)
-          setIsWaiting(false)
-          setIsGameActive(true)
-          setPlayerSymbol(data.playerSymbol)
-          playerSymbolRef.current = data.playerSymbol
-          setCurrentPlayer("X") //x start first
-          setGameStatus(data.message)
-          setBoard(Array(9).fill(null))
-          setWinningLine(null)
-          gameResultReportedRef.current = false
-        } catch (error) {
-          console.error("Error in gameStart handler:", error)
-        }
+        setIsWaiting(false)
+        setIsGameActive(true)
+        setPlayerSymbol(data.playerSymbol)
+        playerSymbolRef.current = data.playerSymbol
+
+        setGameStatus(data.message)
+        setBoard(data.board || Array(25).fill(0))
+        setWinningLine(null)
+        gameResultReportedRef.current = false
       })
 
       wsService.current.on("waiting", (data) => {
@@ -111,61 +105,29 @@ function Game({ onBackToMenu, onWin, onLoss, onDraw }) {
       })
 
       wsService.current.on("gameOver", (data) => {
-        try {
-          console.log("Game over message received:", data)
-          setBoard(data.board)
-          setIsGameActive(false)
+        setBoard(data.board)
+        setIsGameActive(false)
 
-          if (data.winner) {
-            const winningLine = {
-              indices: data.winningLine,
-              winner: data.winner,
-            }
-            setWinningLine(winningLine)
+        if (data.winner) {
+          const winningLine = {
+            indices: data.winningLine,
+            winner: data.winner,
+          }
+          setWinningLine(winningLine)
 
-            if (data.winner === playerSymbolRef.current) {
-              setGameStatus("You win!")
-              if (!gameResultReportedRef.current) {
-                callbacksRef.current.onWin()
-                gameResultReportedRef.current = true
-              }
-            } else {
-              setGameStatus("You lose!")
-              if (!gameResultReportedRef.current) {
-                callbacksRef.current.onLoss()
-                gameResultReportedRef.current = true
-              }
+          if (data.winner === playerSymbolRef.current) {
+            setGameStatus("You win!")
+            if (!gameResultReportedRef.current) {
+              callbacksRef.current.onWin()
+              gameResultReportedRef.current = true
             }
           } else {
-            setGameStatus("It's a draw!")
+            setGameStatus("You lose!")
             if (!gameResultReportedRef.current) {
-              callbacksRef.current.onDraw()
+              callbacksRef.current.onLoss()
               gameResultReportedRef.current = true
             }
           }
-        } catch (error) {
-          console.error("Error in gameOver handler:", error)
-        }
-      })
-
-      wsService.current.on("moveMade", (data) => {
-        try {
-          console.log("Received moveMade:", data)
-          console.log("Current playerSymbol:", playerSymbolRef.current)
-          console.log("New current turn:", data.currentPlayer)
-          
-          setBoard(data.board)
-          setCurrentPlayer(data.currentPlayer)
-
-          if (data.currentPlayer === playerSymbolRef.current) {
-            console.log("It's now my turn!")
-            setGameStatus("Your turn!")
-          } else {
-            console.log("Opponent's turn now")
-            setGameStatus("Opponent is thinking...")
-          }
-        } catch (error) {
-          console.error("Error in moveMade handler:", error)
         }
       })
 
@@ -182,6 +144,20 @@ function Game({ onBackToMenu, onWin, onLoss, onDraw }) {
           console.error("Error in opponentDisconnected handler:", error)
         }
       })
+
+      wsService.current.on("update", (data) => {
+        console.log("Received UPDATE:", data);
+
+        if (data.board) {
+          setBoard(data.board);
+        } else if (data.square !== undefined && data.value !== undefined) {
+          setBoard(prev => {
+            const newBoard = [...prev];
+            newBoard[data.square] = data.value;
+            return newBoard;
+          });
+        }
+      });
 
       // connect to server
       try {
@@ -226,16 +202,10 @@ function Game({ onBackToMenu, onWin, onLoss, onDraw }) {
   }, []) // Empty dependency array - only run once on mount
 
   const handleCellClick = (index) => {
-    if (
-      board[index] !== null ||
-      !isGameActive ||
-      currentPlayer !== playerSymbol
-    )
-      return
+    if (!isGameActive) return;
 
-    //send
-    console.log(`Sending move: position ${index}, player ${playerSymbol}`)
-    wsService.current?.send("move", { position: index })
+    console.log(`Sending INCREMENT for square ${index}`);
+    wsService.current?.send("INCREMENT", { square: index });
   }
 
   const handleBackToMenu = () => {
@@ -244,6 +214,10 @@ function Game({ onBackToMenu, onWin, onLoss, onDraw }) {
     }
     onBackToMenu()
   }
+
+  useEffect(() => {
+    console.log("Board updated:", board)
+  }, [board])
 
   return (
     <div className='min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 py-8 px-4'>
@@ -289,16 +263,16 @@ function Game({ onBackToMenu, onWin, onLoss, onDraw }) {
         {!isWaiting && (
           <>
             <GameInfo
-              currentPlayer={currentPlayer}
+              playerSymbol={playerSymbol}
               gameStatus={gameStatus}
-              isPlayerTurn={currentPlayer === playerSymbol}
+              isGameActive={isGameActive}
             />
 
             <Board
               board={board}
               onCellClick={handleCellClick}
               winningLine={winningLine}
-              disabled={!isGameActive || currentPlayer !== playerSymbol}
+              disabled={!isGameActive}
             />
 
             <div className='flex gap-4 justify-center mt-6 max-w-md mx-auto'>

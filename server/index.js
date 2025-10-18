@@ -19,32 +19,41 @@ function sendMessage(socket, type, data) {
 }
 
 function checkWinner(board) {
-  const winningCombinations = [
-    [0, 1, 2],
-    [3, 4, 5],
-    [6, 7, 8],
-    [0, 3, 6],
-    [1, 4, 7],
-    [2, 5, 8],
-    [0, 4, 8],
-    [2, 4, 6],
-  ];
+  const WINNING_COMBINATIONS = [
+    // 5 rows
+    [0, 1, 2, 3, 4],
+    [5, 6, 7, 8, 9],
+    [10, 11, 12, 13, 14],
+    [15, 16, 17, 18, 19],
+    [20, 21, 22, 23, 24],
 
-  for (const combination of winningCombinations) {
-    const [a, b, c] = combination;
-    if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-      return {
-        winner: board[a], line: combination
-      }
-    }
+    // 5 columns
+    [0, 5, 10, 15, 20],
+    [1, 6, 11, 16, 21],
+    [2, 7, 12, 17, 22],
+    [3, 8, 13, 18, 23],
+    [4, 9, 14, 19, 24],
+
+    // 2 diagonals
+    [0, 6, 12, 18, 24],
+    [4, 8, 12, 16, 20]
+  ]
+
+
+  for (const combination of WINNING_COMBINATIONS) {
+    const values = combination.map(i => board[i])
+
+    const allOdd = values.every(v => v > 0 && v % 2 == 1)
+    if (allOdd)
+      return { indices: combination, winner: 'ODD' }
+
+    const allEven = values.every(v => v > 0 && v % 2 == 0)
+    if (allEven)
+      return { indices: combination, winner: 'EVEN' }
   }
-
   return null;
 }
 
-function isDraw(board) {
-  return board.every(cell => cell !== null) && !checkWinner(board);
-}
 
 function broadcastToRoom(roomId, type, data) {
   const room = rooms[roomId];
@@ -72,28 +81,30 @@ io.on('connection', (socket) => {
           const room = waitingRoom;
           const roomId = room.roomId;
 
-          room.players.push({ socket, symbol: 'O' });
+          room.players.push({ socket, symbol: 'EVEN' });
           socket.roomId = roomId;
           socket.playerId = 1;
 
           // Clear waiting room
           waitingRoom = null;
 
-          // Notify both players that game is starting
+
+
           sendMessage(room.players[0].socket, 'gameStart', {
             roomId,
-            playerSymbol: 'X',
-            opponentSymbol: 'O',
-            isYourTurn: true,
-            message: 'Game started! You are X (go first)'
+            playerSymbol: 'ODD',
+            opponentSymbol: 'EVEN',
+            message: 'Game started! You are the ODD player',
+            board: room.board // Send initial board state
           });
+
 
           sendMessage(room.players[1].socket, 'gameStart', {
             roomId,
-            playerSymbol: 'O',
-            opponentSymbol: 'X',
-            isYourTurn: false,
-            message: 'Game started! You are O (wait for opponent)'
+            playerSymbol: 'EVEN',
+            opponentSymbol: 'ODD',
+            message: 'Game started! You are the EVEN player',
+            board: room.board
           });
 
           console.log(`Room ${roomId} is now full. Game starting!`);
@@ -103,9 +114,8 @@ io.on('connection', (socket) => {
           const roomId = roomIdCounter++;
           const newRoom = {
             roomId,
-            players: [{ socket, symbol: 'X' }],
-            board: Array(9).fill(null),
-            currentPlayer: 'X',
+            players: [{ socket, symbol: 'ODD' }],
+            board: Array(25).fill(0),
           }
 
           rooms[roomId] = newRoom;
@@ -121,96 +131,57 @@ io.on('connection', (socket) => {
         }
         break;
 
-      case 'move':
-        // Handle player making a move
+      case 'INCREMENT':
+        // Handle player making an increment
         try {
-          console.log(`Move received from ${socket.id}, roomId: ${socket.roomId}, playerId: ${socket.playerId}`);
 
-          const { position } = data;
+          const { square } = data;
           const roomId = socket.roomId;
           const room = rooms[roomId];
 
           if (!room) {
-            console.log(`Error: Room ${roomId} not found for socket ${socket.id}`);
             sendMessage(socket, 'error', { message: 'Room not found' });
             break;
           }
 
-          // Verify player exists in room
-          if (socket.playerId === null || socket.playerId === undefined) {
-            console.log(`Error: Player ID not set for socket ${socket.id}`);
-            sendMessage(socket, 'error', { message: 'Player not properly initialized' });
-            break;
-          }
-
-          if (!room.players[socket.playerId]) {
-            console.log(`Error: Player ${socket.playerId} not found in room ${roomId}`);
-            sendMessage(socket, 'error', { message: 'Player not found in room' });
-            break;
-          }
-
-          // Verify it's this player's turn
-          const playerSymbol = room.players[socket.playerId].symbol;
-          console.log(`Player ${socket.id} (${playerSymbol}) attempting move at position ${position}, current turn: ${room.currentPlayer}`);
-
-          if (room.currentPlayer !== playerSymbol) {
-            console.log(`Error: Not player's turn. Current: ${room.currentPlayer}, Player: ${playerSymbol}`);
-            sendMessage(socket, 'error', { message: 'Not your turn' });
-            break;
-          }
-
-          // Verify position is valid
-          if (position < 0 || position > 8) {
-            console.log(`Error: Invalid position ${position}`);
-            sendMessage(socket, 'error', { message: 'Invalid position' });
-            break;
-          }
-
-          if (room.board[position] !== null) {
-            console.log(`Error: Cell ${position} already occupied`);
-            sendMessage(socket, 'error', { message: 'Cell already occupied' });
+          // Verify square is valid
+          if (square < 0 || square > 24) {
+            console.log(`Error: Invalid square ${square}`);
+            sendMessage(socket, 'error', { message: 'Invalid square' });
             break;
           }
 
           // Make the move
-          room.board[position] = playerSymbol;
-          console.log(`Move successful: ${playerSymbol} at position ${position}`);
+          room.board[square] += 1
+          const newValue = room.board[square];
 
           const winner = checkWinner(room.board);
-          const draw = isDraw(room.board);
 
           if (winner) {
             console.log(`Game over: ${winner.winner} wins!`);
             broadcastToRoom(roomId, 'gameOver', {
               board: room.board,
               winner: winner.winner,
-              winningLine: winner.line,
-              message: `${winner.winner} wins!`
-            });
-          } else if (draw) {
-            console.log(`Game over: Draw`);
-            broadcastToRoom(roomId, 'gameOver', {
-              board: room.board,
-              winner: null,
-              message: "It's a draw!"
+              winningLine: winner.indices,
+              message: `${winner.winner} player wins!`
             });
           } else {
             // Continue game - switch turns
-            room.currentPlayer = room.currentPlayer === 'X' ? 'O' : 'X';
-            console.log(`Switching turn to ${room.currentPlayer}, broadcasting moveMade`);
-            broadcastToRoom(roomId, 'moveMade', {
-              board: room.board,
-              position,
-              player: playerSymbol,
-              currentPlayer: room.currentPlayer
+
+            broadcastToRoom(roomId, 'update', {
+              square: square,
+              value: newValue,
+              board: room.board // Send full board state
             });
-            console.log(`MoveMade broadcasted successfully`);
+
           }
         } catch (error) {
           console.error(`Error processing move from ${socket.id}:`, error);
-          sendMessage(socket, 'error', { message: 'Error processing move' });
+          sendMessage(socket, 'error', { message: 'Error processing increment' });
         }
         break;
+
+
 
       default:
         console.log('Unknown message type:', type);

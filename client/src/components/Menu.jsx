@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { WebSocketService } from "../utils/websocket"
+import { WebSocketService } from "../utils/webSocket"
 
 function Menu({
   onStartOnlineGame,
@@ -114,8 +114,9 @@ function Menu({
 
         {/* Info */}
         <div className='mt-8 text-center text-sm text-gray-500'>
-          <p>First player plays as X</p>
-          <p>Second player plays as O</p>
+          <p>First player plays as ODD</p>
+          <p>Second player plays as EVEN</p>
+          <p className='mt-2'>Click squares to increment numbers!</p>
         </div>
       </div>
     </div>
